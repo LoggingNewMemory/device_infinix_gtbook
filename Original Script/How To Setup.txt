@@ -1,0 +1,21 @@
+Install Deps
+
+sudo pacman -S python-hidapi
+
+Setup Permissions (udev rules)
+
+sudo nano /etc/udev/rules.d/99-infinix-keyboard.rules
+
+Then Paste 
+
+SUBSYSTEM=="usb", ATTR{idVendor}=="340e", ATTR{idProduct}=="8002", MODE="0666"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="340e", ATTRS{idProduct}=="8002", MODE="0666"
+
+Reload the rules and trigger them
+
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+
+Run The Tool
+
+python infinix_keyboard_rgb_control.py
