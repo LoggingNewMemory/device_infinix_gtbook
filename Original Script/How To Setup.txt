@@ -19,3 +19,6 @@ sudo udevadm trigger
 Run The Tool
 
 python infinix_keyboard_rgb_control.py
+
+python infinix_backlight_rgb_control.py office 
+python infinix_backlight_rgb_control.py gaming
