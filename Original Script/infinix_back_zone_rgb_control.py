@@ -1,36 +1,46 @@
-import usb.core
-import usb.util
+#!/usr/bin/env python3
+import hid
 import sys
 
-# Device Constants from Usb.cs
-VENDOR_ID = 0x340E  # 13326
-PRODUCT_ID = 0x8002 # 32770
-ENDPOINT_OUT = 0x02
+# --- Hardware Constants ---
+VENDOR_ID = 0x340E   # Infinix / ITE
+PRODUCT_ID = 0x8002  # GT Book Controller
+INTERFACE_NUM = 1    # Shared Interface
+
+def get_device_path():
+    """Finds the correct HID interface."""
+    for d in hid.enumerate(VENDOR_ID, PRODUCT_ID):
+        if d['interface_number'] == INTERFACE_NUM:
+            return d['path']
+    return None
 
 def calculate_checksum(data):
-    # C# Logic: Sum of bytes at index 1 to 62
+    # Sum of bytes at index 1 to 62 (indices 1 up to 63 in Python slice)
     total = sum(data[1:63])
     return total & 0xFF
 
 def create_packet(mode_byte):
-    # Packet structure based on TxBuf.cs
-    # Size is 64 bytes
-    packet = [0] * 64
+    # Packet structure: 65 bytes for HIDAPI (First byte is Report ID 0)
+    # The actual payload starts at index 1
+    packet = [0] * 65
     
-    # Byte 0: ID (Fixed 6)
-    packet[0] = 0x06
+    # Report ID (Usually 0 for raw HID writes, or specific ID)
+    # Based on your previous script, the first data byte is 0x06.
+    # In hidapi, packet[0] is often the Report ID. 
+    # If the device expects the first byte of transmission to be 0x06:
+    packet[0] = 0x06 
     
-    # Byte 1: Command + Mode (Fan_Ctrl + Mode)
-    # Reversed logic from C# bit manipulation:
-    # Office (0)  -> 0x40 (64)
-    # Balance (1) -> 0x41 (65)
-    # Gaming (2)  -> 0x42 (66)
+    # Byte 1: Command + Mode
+    # Office (0)  -> 0x40 
+    # Balance (1) -> 0x41 
+    # Gaming (2)  -> 0x42 
     packet[1] = 0x40 + mode_byte
     
     # Byte 63: Checksum
+    # Note: checksum calculation is based on packet[1:63]
     packet[63] = calculate_checksum(packet)
     
-    return bytes(packet)
+    return packet
 
 def send_command(mode_name):
     modes = {
@@ -44,31 +54,28 @@ def send_command(mode_name):
         return
 
     print(f"Setting mode to: {mode_name}...")
-    packet = create_packet(modes[mode_name])
     
-    # Find device
-    dev = usb.core.find(idVendor=VENDOR_ID, idProduct=PRODUCT_ID)
-    if dev is None:
-        print("Device not found! Is the Infinix GT Book connected?")
+    path = get_device_path()
+    if not path:
+        print("[!] Device not found. Ensure it is plugged in.")
         return
 
-    # Detach kernel driver if active (hid-generic often grabs this)
-    if dev.is_kernel_driver_active(1):
-        try:
-            dev.detach_kernel_driver(1)
-        except usb.core.USBError as e:
-            sys.exit(f"Could not detach kernel driver: {str(e)}")
-
-    # Write to Endpoint 0x02
     try:
-        # Interface 1 is used in Usb.cs
-        dev.write(ENDPOINT_OUT, packet, 1000)
+        h = hid.device()
+        h.open_path(path)
+        
+        packet = create_packet(modes[mode_name])
+        
+        # Send the packet
+        h.write(packet)
+        h.close()
         print("Command sent successfully.")
-    except usb.core.USBError as e:
-        print(f"Error sending command: {str(e)}")
+        
+    except Exception as e:
+        print(f"Error sending command: {e}")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: sudo python infinix_control.py [office|balance|gaming]")
+        print("Usage: python3 infinix_back_zone_rgb_control.py [office|balance|gaming]")
     else:
         send_command(sys.argv[1].lower())
