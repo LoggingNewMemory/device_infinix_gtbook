@@ -1,53 +1,74 @@
-import hid
-import struct
-import time
+import usb.core
+import usb.util
+import sys
 
-VENDOR_ID = 0x340e
-PRODUCT_ID = 0x8002
+# Device Constants from Usb.cs
+VENDOR_ID = 0x340E  # 13326
+PRODUCT_ID = 0x8002 # 32770
+ENDPOINT_OUT = 0x02
 
-def scan_for_tunnel():
-    print("--- TUNNEL SCANNER ---")
+def calculate_checksum(data):
+    # C# Logic: Sum of bytes at index 1 to 62
+    total = sum(data[1:63])
+    return total & 0xFF
+
+def create_packet(mode_byte):
+    # Packet structure based on TxBuf.cs
+    # Size is 64 bytes
+    packet = [0] * 64
     
-    # The Serial Packet we want to send (Static RED)
-    # H1(52) H2(14) Mode(1) R(255) ...
-    serial_packet = struct.pack('<BBBB', 0x34, 0x0E, 0x01, 0xFF) + (b'\x00'*13)
-
-    devices = hid.enumerate(VENDOR_ID, PRODUCT_ID)
-    target = None
-    for d in devices:
-        if d['interface_number'] == 1:
-            target = d
-            break
-
-    if not target: return
-
-    h = hid.device()
-    h.open_path(target['path'])
+    # Byte 0: ID (Fixed 6)
+    packet[0] = 0x06
     
-    print("Scanning Command IDs 0-255...")
-    for cmd_id in range(256):
-        # Construct a packet where Byte 0 is the Command ID
-        # and the rest is our Serial Packet
-        
-        payload = bytearray(63)
-        payload[0] = cmd_id
-        
-        # Copy serial packet into the payload at offset 1
-        # (Simulating: [CMD] [SERIAL_DATA...])
-        for i, b in enumerate(serial_packet):
-            payload[i+1] = b
-            
-        # Send Report 6
-        h.write(b'\x06' + payload)
-        
-        # Visual feedback every 10 IDs
-        if cmd_id % 10 == 0:
-            print(f"Tested ID: {cmd_id}", end='\r')
-        
-        time.sleep(0.01)
+    # Byte 1: Command + Mode (Fan_Ctrl + Mode)
+    # Reversed logic from C# bit manipulation:
+    # Office (0)  -> 0x40 (64)
+    # Balance (1) -> 0x41 (65)
+    # Gaming (2)  -> 0x42 (66)
+    packet[1] = 0x40 + mode_byte
+    
+    # Byte 63: Checksum
+    packet[63] = calculate_checksum(packet)
+    
+    return bytes(packet)
 
-    h.close()
-    print("\nScan Complete.")
+def send_command(mode_name):
+    modes = {
+        "office": 0,
+        "balance": 1,
+        "gaming": 2
+    }
+    
+    if mode_name not in modes:
+        print(f"Invalid mode. Available modes: {list(modes.keys())}")
+        return
+
+    print(f"Setting mode to: {mode_name}...")
+    packet = create_packet(modes[mode_name])
+    
+    # Find device
+    dev = usb.core.find(idVendor=VENDOR_ID, idProduct=PRODUCT_ID)
+    if dev is None:
+        print("Device not found! Is the Infinix GT Book connected?")
+        return
+
+    # Detach kernel driver if active (hid-generic often grabs this)
+    if dev.is_kernel_driver_active(1):
+        try:
+            dev.detach_kernel_driver(1)
+        except usb.core.USBError as e:
+            sys.exit(f"Could not detach kernel driver: {str(e)}")
+
+    # Write to Endpoint 0x02
+    try:
+        # Interface 1 is used in Usb.cs
+        dev.write(ENDPOINT_OUT, packet, 1000)
+        print("Command sent successfully.")
+    except usb.core.USBError as e:
+        print(f"Error sending command: {str(e)}")
 
 if __name__ == "__main__":
-    scan_for_tunnel()
+    if len(sys.argv) < 2:
+        print("Usage: sudo python infinix_control.py [office|balance|gaming]")
+    else:
+        send_command(sys.argv[1].lower())
