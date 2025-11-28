@@ -1,6 +1,6 @@
 Install Deps
 
-sudo pacman -S python-hidapi
+sudo pacman -S python-hidapi python-pyserial
 
 Setup Permissions (udev rules)
 
