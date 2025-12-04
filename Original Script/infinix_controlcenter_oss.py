@@ -5,13 +5,22 @@ import tkinter as tk
 from tkinter import ttk, messagebox, colorchooser
 
 # --- Hardware Constants ---
-VENDOR_ID = 0x340E
-PRODUCT_ID = 0x8002
-INTERFACE_NUM = 1
+VENDOR_ID = 0x340E   # Infinix / ITE
+PRODUCT_ID = 0x8002  # GT Book Controller
+INTERFACE_NUM = 1    # Shared Interface
 
-# --- Definitions ---
+# --- Styling Constants ---
+COLOR_BG = "#121212"        # Deep Dark Background
+COLOR_PANEL = "#1E1E1E"     # Slightly lighter panels
+COLOR_ACCENT = "#FF6600"    # Infinix GT Orange
+COLOR_TEXT = "#FFFFFF"      # White Text
+COLOR_TEXT_DIM = "#AAAAAA"  # Dimmed Text
+COLOR_SUCCESS = "#00E676"   # Green for connected
+COLOR_ERROR = "#FF5252"     # Red for disconnected
+
+# --- Logic Definitions ---
 KB_MODES = {
-    0: "Off",
+    0: "Lights Off",
     1: "Static Color",
     2: "Breathing",
     3: "Neon Cycle",
@@ -21,42 +30,44 @@ KB_MODES = {
 }
 
 PRESET_COLORS = {
-    "Infinix Orange": (255, 100, 0),
-    "Red": (255, 0, 0),
-    "Green": (0, 255, 0),
-    "Blue": (0, 0, 255),
-    "Cyan": (0, 255, 255),
+    "GT Orange": (255, 100, 0),
+    "Cyber Blue": (0, 255, 255),
+    "Neon Green": (0, 255, 0),
+    "Crimson": (255, 0, 0),
+    "Deep Blue": (0, 0, 255),
     "Magenta": (255, 0, 255),
     "Yellow": (255, 255, 0),
     "White": (255, 255, 255),
 }
 
-POWER_MODES = {
-    "Office": 0x40,
-    "Balance": 0x41,
-    "Gaming": 0x42
+# "Back Zone" / Performance Modes based on your script
+PERFORMANCE_MODES = {
+    "OFFICE": 0x40,
+    "BALANCE": 0x41,
+    "GAMING": 0x42
 }
 
-class InfinixHardware:
+class InfinixHID:
     def __init__(self):
         self.device_path = None
 
     def find_device(self):
-        """Finds the correct HID interface."""
-        for d in hid.enumerate(VENDOR_ID, PRODUCT_ID):
-            if d['interface_number'] == INTERFACE_NUM:
-                self.device_path = d['path']
-                return True
+        try:
+            for d in hid.enumerate(VENDOR_ID, PRODUCT_ID):
+                if d['interface_number'] == INTERFACE_NUM:
+                    self.device_path = d['path']
+                    return True
+        except Exception:
+            return False
         return False
 
-    def _calculate_checksum(self, packet):
-        # Sum of bytes at index 1 to 62
+    def _checksum(self, packet):
+        # Sum bytes 1 through 62
         return sum(packet[1:63]) & 0xFF
 
-    def _send_packet(self, packet):
+    def _send(self, packet):
         if not self.find_device():
-            return False, "Device not found"
-        
+            return False, "Device not connected"
         try:
             h = hid.device()
             h.open_path(self.device_path)
@@ -66,7 +77,7 @@ class InfinixHardware:
         except Exception as e:
             return False, str(e)
 
-    def set_keyboard(self, mode_id, r, g, b, brightness):
+    def set_rgb(self, mode_id, r, g, b, brightness):
         packet = [0] * 65
         packet[0] = 0x06            # Report ID
         packet[1] = 0x10 | mode_id  # Command + Mode
@@ -75,194 +86,215 @@ class InfinixHardware:
         packet[8] = g
         packet[9] = b
         packet[10] = brightness
-        
-        packet[63] = self._calculate_checksum(packet)
-        return self._send_packet(packet)
+        packet[63] = self._checksum(packet)
+        return self._send(packet)
 
-    def set_power_mode(self, mode_byte):
+    def set_performance(self, mode_byte):
         packet = [0] * 65
         packet[0] = 0x06
         packet[1] = mode_byte
-        packet[63] = self._calculate_checksum(packet)
-        return self._send_packet(packet)
+        packet[63] = self._checksum(packet)
+        return self._send(packet)
 
-class GTControlCenterApp:
+class GTControlCenter:
     def __init__(self, root):
         self.root = root
-        self.hw = InfinixHardware()
-        self.root.title("Infinix GT Control Center (OSS)")
-        self.root.geometry("600x550")
+        self.hw = InfinixHID()
+        
+        # Window Setup
+        self.root.title("GT CONTROL CENTER")
+        self.root.geometry("700x500")
+        self.root.configure(bg=COLOR_BG)
         self.root.resizable(False, False)
-        
-        # --- State Variables ---
+
+        # Variables
+        self.var_mode = tk.StringVar(value="Static Color")
+        self.var_bright = tk.IntVar(value=50)
+        self.var_status = tk.StringVar(value="Initializing...")
         self.current_color = (255, 100, 0) # Default Orange
-        self.brightness_var = tk.IntVar(value=50)
-        self.mode_var = tk.StringVar(value="Static Color")
-        self.status_var = tk.StringVar(value="Ready")
 
-        # --- Style Configuration (Dark/Gamer Theme) ---
-        self.style = ttk.Style()
-        self.style.theme_use('clam')
-        
-        BG_COLOR = "#1e1e1e"
-        FG_COLOR = "#ffffff"
-        ACCENT_COLOR = "#ff6600" # Infinix Orange
-        PANEL_COLOR = "#2d2d2d"
-        
-        self.root.configure(bg=BG_COLOR)
-        
-        self.style.configure("TFrame", background=BG_COLOR)
-        self.style.configure("TLabel", background=BG_COLOR, foreground=FG_COLOR, font=("Segoe UI", 10))
-        self.style.configure("Header.TLabel", font=("Segoe UI", 16, "bold"), foreground=ACCENT_COLOR)
-        
-        self.style.configure("TButton", background=PANEL_COLOR, foreground=FG_COLOR, borderwidth=1, focuscolor=ACCENT_COLOR)
-        self.style.map("TButton", background=[('active', ACCENT_COLOR)])
-        
-        self.style.configure("Accent.TButton", background=ACCENT_COLOR, foreground="#000000", font=("Segoe UI", 10, "bold"))
-        self.style.map("Accent.TButton", background=[('active', "#ff8533")])
+        self._setup_styles()
+        self._build_ui()
+        self._start_connection_monitor()
 
-        self.style.configure("TScale", background=BG_COLOR, troughcolor=PANEL_COLOR, sliderlength=20)
+    def _setup_styles(self):
+        style = ttk.Style()
+        style.theme_use('clam')
         
-        self.style.configure("TLabelframe", background=BG_COLOR, foreground=FG_COLOR, bordercolor=PANEL_COLOR)
-        self.style.configure("TLabelframe.Label", background=BG_COLOR, foreground=ACCENT_COLOR, font=("Segoe UI", 11, "bold"))
-
-        # --- UI Layout ---
-        self._build_header()
-        self._build_keyboard_controls()
-        self._build_power_controls()
-        self._build_statusbar()
-
-    def _build_header(self):
-        header_frame = ttk.Frame(self.root)
-        header_frame.pack(fill="x", pady=15, padx=20)
+        # General Frame styling
+        style.configure("TFrame", background=COLOR_BG)
+        style.configure("Panel.TFrame", background=COLOR_PANEL, relief="flat")
         
-        lbl = ttk.Label(header_frame, text="GT BOOK CONTROL", style="Header.TLabel")
-        lbl.pack(side="left")
+        # Labels
+        style.configure("TLabel", background=COLOR_BG, foreground=COLOR_TEXT, font=("Segoe UI", 10))
+        style.configure("Panel.TLabel", background=COLOR_PANEL, foreground=COLOR_TEXT, font=("Segoe UI", 10))
+        style.configure("Header.TLabel", background=COLOR_BG, foreground=COLOR_ACCENT, font=("Segoe UI", 18, "bold"))
+        style.configure("SubHeader.TLabel", background=COLOR_PANEL, foreground=COLOR_ACCENT, font=("Segoe UI", 12, "bold"))
         
-        # Device Status Indicator
-        self.lbl_conn = ttk.Label(header_frame, text="Checking...", font=("Segoe UI", 9))
-        self.lbl_conn.pack(side="right", anchor="center")
-        self.check_connection()
+        # Buttons
+        style.configure("TButton", 
+            background="#333333", 
+            foreground=COLOR_TEXT, 
+            borderwidth=0, 
+            font=("Segoe UI", 10, "bold")
+        )
+        style.map("TButton", 
+            background=[('active', COLOR_ACCENT), ('pressed', '#CC5200')],
+            foreground=[('active', '#000000')]
+        )
 
-    def _build_keyboard_controls(self):
-        kb_frame = ttk.LabelFrame(self.root, text="Keyboard Lighting", padding=15)
-        kb_frame.pack(fill="x", padx=20, pady=10)
+        # Accent Button
+        style.configure("Accent.TButton", 
+            background=COLOR_ACCENT, 
+            foreground="#000000", 
+            font=("Segoe UI", 11, "bold")
+        )
+        style.map("Accent.TButton", background=[('active', '#FF8533')])
 
-        # Row 1: Mode Selection
-        row1 = ttk.Frame(kb_frame)
-        row1.pack(fill="x", pady=5)
-        ttk.Label(row1, text="Effect Mode:").pack(side="left", padx=(0, 10))
+    def _build_ui(self):
+        # --- Header ---
+        header = ttk.Frame(self.root)
+        header.pack(fill="x", pady=20, padx=25)
         
-        mode_cb = ttk.Combobox(row1, textvariable=self.mode_var, values=list(KB_MODES.values()), state="readonly")
-        mode_cb.pack(side="left", fill="x", expand=True)
-        mode_cb.bind("<<ComboboxSelected>>", lambda e: self.apply_keyboard())
+        title = ttk.Label(header, text="GT CONTROL CENTER", style="Header.TLabel")
+        title.pack(side="left")
 
-        # Row 2: Brightness
-        row2 = ttk.Frame(kb_frame)
-        row2.pack(fill="x", pady=15)
-        ttk.Label(row2, text="Brightness:").pack(side="left", padx=(0, 10))
-        scale = ttk.Scale(row2, from_=0, to=100, variable=self.brightness_var, orient="horizontal", command=lambda v: self.apply_keyboard())
-        scale.pack(side="left", fill="x", expand=True, padx=5)
+        self.conn_lbl = ttk.Label(header, text="● Disconnected", foreground=COLOR_ERROR, font=("Segoe UI", 10))
+        self.conn_lbl.pack(side="right")
+
+        # --- Main Content Area (Grid) ---
+        content = ttk.Frame(self.root)
+        content.pack(fill="both", expand=True, padx=25, pady=10)
+        content.columnconfigure(0, weight=1) # Keyboard Col
+        content.columnconfigure(1, weight=1) # Power Col
+
+        # === Left Panel: Keyboard Lighting ===
+        kb_panel = ttk.Frame(content, style="Panel.TFrame", padding=20)
+        kb_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+
+        ttk.Label(kb_panel, text="KEYBOARD LIGHTING", style="SubHeader.TLabel").pack(anchor="w", pady=(0, 15))
+
+        # Mode Selector
+        ttk.Label(kb_panel, text="Effect Mode", style="Panel.TLabel", foreground=COLOR_TEXT_DIM).pack(anchor="w")
+        mode_cb = ttk.Combobox(kb_panel, textvariable=self.var_mode, values=list(KB_MODES.values()), state="readonly")
+        mode_cb.pack(fill="x", pady=(5, 15))
+        mode_cb.bind("<<ComboboxSelected>>", self.apply_rgb)
+
+        # Brightness
+        ttk.Label(kb_panel, text="Brightness", style="Panel.TLabel", foreground=COLOR_TEXT_DIM).pack(anchor="w")
         
-        # FIX: Moved width=4 inside ttk.Label constructor
-        ttk.Label(row2, textvariable=self.brightness_var, width=4).pack(side="right")
+        bright_frame = ttk.Frame(kb_panel, style="Panel.TFrame")
+        bright_frame.pack(fill="x", pady=(5, 15))
+        
+        b_scale = ttk.Scale(bright_frame, from_=0, to=100, variable=self.var_bright, orient="horizontal", command=self.on_bright_slide)
+        b_scale.pack(side="left", fill="x", expand=True)
+        
+        self.bright_lbl = ttk.Label(bright_frame, textvariable=self.var_bright, style="Panel.TLabel", width=4)
+        self.bright_lbl.pack(side="right", padx=(10, 0))
 
-        # Row 3: Colors
-        ttk.Label(kb_frame, text="Quick Colors:").pack(anchor="w", pady=(10, 5))
-        color_grid = ttk.Frame(kb_frame)
+        # Color Presets
+        ttk.Label(kb_panel, text="Quick Colors", style="Panel.TLabel", foreground=COLOR_TEXT_DIM).pack(anchor="w", pady=(0, 5))
+        
+        color_grid = ttk.Frame(kb_panel, style="Panel.TFrame")
         color_grid.pack(fill="x")
         
         col_idx = 0
+        row_idx = 0
         for name, rgb in PRESET_COLORS.items():
-            btn = tk.Button(color_grid, bg=self._rgb_to_hex(rgb), width=4, height=2, 
-                            activebackground=self._rgb_to_hex(rgb), 
+            hex_c = "#%02x%02x%02x" % rgb
+            btn = tk.Button(color_grid, bg=hex_c, activebackground=hex_c, 
+                            relief="flat", width=4, height=1, 
                             command=lambda c=rgb: self.set_color(c))
-            btn.grid(row=0, column=col_idx, padx=5, pady=5)
+            btn.grid(row=row_idx, column=col_idx, padx=4, pady=4)
             col_idx += 1
-            
-        # Custom Color Button
-        custom_btn = ttk.Button(kb_frame, text="Pick Custom Color", command=self.pick_color)
-        custom_btn.pack(fill="x", pady=(15, 0))
+            if col_idx > 3: # 4 cols wide
+                col_idx = 0
+                row_idx += 1
 
-    def _build_power_controls(self):
-        pwr_frame = ttk.LabelFrame(self.root, text="System Performance", padding=15)
-        pwr_frame.pack(fill="x", padx=20, pady=10)
+        # Custom Color
+        ttk.Button(kb_panel, text="PICK CUSTOM COLOR", command=self.pick_custom_color).pack(fill="x", pady=(20, 0))
+
+        # === Right Panel: Performance / Back Zone ===
+        perf_panel = ttk.Frame(content, style="Panel.TFrame", padding=20)
+        perf_panel.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
+
+        ttk.Label(perf_panel, text="SYSTEM MODE", style="SubHeader.TLabel").pack(anchor="w", pady=(0, 5))
+        ttk.Label(perf_panel, text="(Performance & Back Zone)", style="Panel.TLabel", font=("Segoe UI", 9, "italic"), foreground=COLOR_TEXT_DIM).pack(anchor="w", pady=(0, 20))
+
+        # Performance Buttons
+        # Office
+        btn_off = ttk.Button(perf_panel, text="OFFICE MODE", command=lambda: self.apply_perf("OFFICE"))
+        btn_off.pack(fill="x", pady=10, ipady=5)
         
-        info_lbl = ttk.Label(pwr_frame, text="Select performance profile (affects fan speed & TDP):", font=("Segoe UI", 9, "italic"))
-        info_lbl.pack(anchor="w", pady=(0, 10))
+        # Balance
+        btn_bal = ttk.Button(perf_panel, text="BALANCE MODE", command=lambda: self.apply_perf("BALANCE"))
+        btn_bal.pack(fill="x", pady=10, ipady=5)
 
-        btn_grid = ttk.Frame(pwr_frame)
-        btn_grid.pack(fill="x")
-        
-        # Spread buttons evenly
-        btn_grid.columnconfigure(0, weight=1)
-        btn_grid.columnconfigure(1, weight=1)
-        btn_grid.columnconfigure(2, weight=1)
+        # Gaming
+        btn_gam = ttk.Button(perf_panel, text="GAMING MODE", style="Accent.TButton", command=lambda: self.apply_perf("GAMING"))
+        btn_gam.pack(fill="x", pady=10, ipady=8)
 
-        ttk.Button(btn_grid, text="OFFICE", command=lambda: self.apply_power("Office")).grid(row=0, column=0, padx=5, sticky="ew")
-        ttk.Button(btn_grid, text="BALANCE", command=lambda: self.apply_power("Balance")).grid(row=0, column=1, padx=5, sticky="ew")
-        ttk.Button(btn_grid, text="GAMING", command=lambda: self.apply_power("Gaming"), style="Accent.TButton").grid(row=0, column=2, padx=5, sticky="ew")
+        # Status Bar at bottom
+        self.status_bar = ttk.Label(self.root, textvariable=self.var_status, foreground=COLOR_TEXT_DIM, font=("Segoe UI", 8))
+        self.status_bar.pack(side="bottom", fill="x", padx=25, pady=10)
 
-    def _build_statusbar(self):
-        status_frame = ttk.Frame(self.root, style="TFrame")
-        status_frame.pack(side="bottom", fill="x", pady=10, padx=20)
-        
-        lbl = ttk.Label(status_frame, textvariable=self.status_var, font=("Segoe UI", 9))
-        lbl.pack(side="left")
+    # --- Interaction Logic ---
 
-    # --- Logic ---
-
-    def _rgb_to_hex(self, rgb):
-        return "#%02x%02x%02x" % rgb
-
-    def check_connection(self):
-        if self.hw.find_device():
-            self.lbl_conn.config(text="● Connected", foreground="#00ff00")
+    def _start_connection_monitor(self):
+        found = self.hw.find_device()
+        if found:
+            self.conn_lbl.config(text="● CONNECTED", foreground=COLOR_SUCCESS)
         else:
-            self.lbl_conn.config(text="○ Disconnected", foreground="#ff0000")
-        self.root.after(5000, self.check_connection) # Recheck every 5s
+            self.conn_lbl.config(text="● DISCONNECTED", foreground=COLOR_ERROR)
+        self.root.after(3000, self._start_connection_monitor)
 
-    def pick_color(self):
-        color = colorchooser.askcolor(title="Select Keyboard Color")
-        if color[0]: # If color selected (r, g, b)
+    def on_bright_slide(self, val):
+        # Debounce or just set directly, RGB application is fast enough
+        self.apply_rgb()
+
+    def set_color(self, rgb):
+        self.current_color = rgb
+        if self.var_mode.get() not in ["Static Color", "Breathing"]:
+            self.var_mode.set("Static Color")
+        self.apply_rgb()
+
+    def pick_custom_color(self):
+        color = colorchooser.askcolor(title="Select LED Color")
+        if color[0]:
             self.set_color(tuple(map(int, color[0])))
 
-    def set_color(self, rgb_tuple):
-        self.current_color = rgb_tuple
-        # Auto switch to Static if user picks a color
-        if self.mode_var.get() not in ["Static Color", "Breathing"]:
-            self.mode_var.set("Static Color")
-        self.apply_keyboard()
-
-    def get_mode_id(self):
-        current_text = self.mode_var.get()
-        for k, v in KB_MODES.items():
-            if v == current_text:
-                return k
-        return 1
-
-    def apply_keyboard(self):
-        mode = self.get_mode_id()
-        r, g, b = self.current_color
-        bright = self.brightness_var.get()
+    def apply_rgb(self, event=None):
+        # Get Mode ID
+        mode_str = self.var_mode.get()
+        mode_id = next((k for k, v in KB_MODES.items() if v == mode_str), 1)
         
-        success, msg = self.hw.set_keyboard(mode, r, g, b, bright)
-        if success:
-            self.status_var.set(f"Applied: {KB_MODES[mode]} | Brightness: {bright}%")
-        else:
-            self.status_var.set(f"Error: {msg}")
+        r, g, b = self.current_color
+        bright = self.var_bright.get()
 
-    def apply_power(self, mode_name):
-        mode_byte = POWER_MODES[mode_name]
-        success, msg = self.hw.set_power_mode(mode_byte)
+        success, msg = self.hw.set_rgb(mode_id, r, g, b, bright)
         if success:
-            self.status_var.set(f"System Mode set to: {mode_name.upper()}")
-            messagebox.showinfo("Success", f"Performance mode set to {mode_name}")
+            self.var_status.set(f"Lighting Applied: {mode_str} | {bright}%")
         else:
-            self.status_var.set(f"Error: {msg}")
+            self.var_status.set(f"Error: {msg}")
+
+    def apply_perf(self, mode_name):
+        byte_val = PERFORMANCE_MODES[mode_name]
+        success, msg = self.hw.set_performance(byte_val)
+        
+        if success:
+            self.var_status.set(f"System Mode Set: {mode_name}")
+            # Visual feedback
+            messagebox.showinfo("System Mode", f"Switched to {mode_name} Mode")
+        else:
+            self.var_status.set(f"Error: {msg}")
             messagebox.showerror("Error", f"Failed to set mode: {msg}")
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = GTControlCenterApp(root)
-    root.mainloop()
+    app_root = tk.Tk()
+    
+    # Attempt to set icon if running on Linux/Windows and file exists (Optional)
+    # img = tk.PhotoImage(file='icon.png')
+    # app_root.iconphoto(False, img)
+    
+    app = GTControlCenter(app_root)
+    app_root.mainloop()
