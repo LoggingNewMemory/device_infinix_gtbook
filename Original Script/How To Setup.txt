@@ -22,3 +22,6 @@ python infinix_keyboard_rgb_control.py
 
 python infinix_backlight_rgb_control.py office 
 python infinix_backlight_rgb_control.py gaming
+
+For OSS Control Center:
+sudo pacman -S tk
