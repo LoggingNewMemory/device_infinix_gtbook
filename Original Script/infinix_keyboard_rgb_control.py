@@ -3,17 +3,15 @@ import hid
 import os
 import sys
 
-# --- Hardware Constants ---
-VENDOR_ID = 0x340E   # Infinix / ITE
-PRODUCT_ID = 0x8002  # GT Book Controller
-INTERFACE_NUM = 1    # LED Interface
+VENDOR_ID = 0x340E
+PRODUCT_ID = 0x8002
+INTERFACE_NUM = 1
 
-# --- Protocol Definitions ---
 MODES = {
     0: "Off",
     1: "Static Color",
     2: "Breathing",
-    3: "Neon Cycle",  # GradualChange
+    3: "Neon Cycle",
     4: "Rainbow",
     5: "Flow",
     6: "Wave",
@@ -32,38 +30,34 @@ COLORS = {
 
 current_settings = {
     "mode": 1,
-    "color": (0, 255, 0), # Default Green
-    "brightness": 50
+    "color": (0, 255, 0),
+    "brightness": 100
 }
 
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def get_device_path():
-    """Finds the correct HID interface for the keyboard."""
     for d in hid.enumerate(VENDOR_ID, PRODUCT_ID):
         if d['interface_number'] == INTERFACE_NUM:
             return d['path']
     return None
 
 def create_packet(mode, r, g, b, brightness):
-    """Builds the 65-byte command packet."""
     packet = [0] * 65
-    packet[0] = 0x06  # Report ID
-    packet[1] = 0x10 | mode # Command (0x10) + Mode
-    packet[2] = 0x04  # Data Size
+    packet[0] = 0x06
+    packet[1] = 0x10 | mode
+    packet[2] = 0x04
     packet[7] = r
     packet[8] = g
     packet[9] = b
     packet[10] = brightness
     
-    # Calculate Checksum
     checksum = sum(packet[1:63])
     packet[63] = checksum & 0xFF
     return packet
 
 def apply_settings():
-    """Sends the current settings to the hardware."""
     path = get_device_path()
     if not path:
         print("\n[!] Device not found. Check USB connection or Permissions.")
@@ -105,7 +99,6 @@ def menu_color():
         elif 1 <= choice <= len(color_keys):
             current_settings["color"] = COLORS[color_keys[choice-1]]
         
-        # If mode is not Static or Breath, switch to Static so user sees the color
         if current_settings["mode"] not in [1, 2]:
             current_settings["mode"] = 1
             
@@ -166,7 +159,7 @@ def main():
             
         if choice in ['1', '2', '3', '4']:
             import time
-            time.sleep(0.5) # Small pause to read status
+            time.sleep(0.5)
 
 if __name__ == "__main__":
     try:

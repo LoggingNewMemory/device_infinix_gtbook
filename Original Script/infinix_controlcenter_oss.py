@@ -4,21 +4,18 @@ import sys
 import tkinter as tk
 from tkinter import ttk, messagebox, colorchooser
 
-# --- Hardware Constants ---
-VENDOR_ID = 0x340E   # Infinix / ITE
-PRODUCT_ID = 0x8002  # GT Book Controller
-INTERFACE_NUM = 1    # Shared Interface
+VENDOR_ID = 0x340E
+PRODUCT_ID = 0x8002
+INTERFACE_NUM = 1
 
-# --- Styling Constants ---
-COLOR_BG = "#121212"        # Deep Dark Background
-COLOR_PANEL = "#1E1E1E"     # Slightly lighter panels
-COLOR_ACCENT = "#FF6600"    # Infinix GT Orange
-COLOR_TEXT = "#FFFFFF"      # White Text
-COLOR_TEXT_DIM = "#AAAAAA"  # Dimmed Text
-COLOR_SUCCESS = "#00E676"   # Green for connected
-COLOR_ERROR = "#FF5252"     # Red for disconnected
+COLOR_BG = "#121212"
+COLOR_PANEL = "#1E1E1E"
+COLOR_ACCENT = "#FF6600"
+COLOR_TEXT = "#FFFFFF"
+COLOR_TEXT_DIM = "#AAAAAA"
+COLOR_SUCCESS = "#00E676"
+COLOR_ERROR = "#FF5252"
 
-# --- Logic Definitions ---
 KB_MODES = {
     0: "Lights Off",
     1: "Static Color",
@@ -40,7 +37,6 @@ PRESET_COLORS = {
     "White": (255, 255, 255),
 }
 
-# "Back Zone" / Performance Modes based on your script
 PERFORMANCE_MODES = {
     "OFFICE": 0x40,
     "BALANCE": 0x41,
@@ -62,7 +58,6 @@ class InfinixHID:
         return False
 
     def _checksum(self, packet):
-        # Sum bytes 1 through 62
         return sum(packet[1:63]) & 0xFF
 
     def _send(self, packet):
@@ -79,9 +74,9 @@ class InfinixHID:
 
     def set_rgb(self, mode_id, r, g, b, brightness):
         packet = [0] * 65
-        packet[0] = 0x06            # Report ID
-        packet[1] = 0x10 | mode_id  # Command + Mode
-        packet[2] = 0x04            # Data Size
+        packet[0] = 0x06
+        packet[1] = 0x10 | mode_id
+        packet[2] = 0x04
         packet[7] = r
         packet[8] = g
         packet[9] = b
@@ -101,17 +96,15 @@ class GTControlCenter:
         self.root = root
         self.hw = InfinixHID()
         
-        # Window Setup
         self.root.title("GT CONTROL CENTER")
         self.root.geometry("700x500")
         self.root.configure(bg=COLOR_BG)
         self.root.resizable(False, False)
 
-        # Variables
         self.var_mode = tk.StringVar(value="Static Color")
-        self.var_bright = tk.IntVar(value=50)
+        self.var_bright = tk.IntVar(value=100)
         self.var_status = tk.StringVar(value="Initializing...")
-        self.current_color = (255, 100, 0) # Default Orange
+        self.current_color = (255, 100, 0)
 
         self._setup_styles()
         self._build_ui()
@@ -121,17 +114,14 @@ class GTControlCenter:
         style = ttk.Style()
         style.theme_use('clam')
         
-        # General Frame styling
         style.configure("TFrame", background=COLOR_BG)
         style.configure("Panel.TFrame", background=COLOR_PANEL, relief="flat")
         
-        # Labels
         style.configure("TLabel", background=COLOR_BG, foreground=COLOR_TEXT, font=("Segoe UI", 10))
         style.configure("Panel.TLabel", background=COLOR_PANEL, foreground=COLOR_TEXT, font=("Segoe UI", 10))
         style.configure("Header.TLabel", background=COLOR_BG, foreground=COLOR_ACCENT, font=("Segoe UI", 18, "bold"))
         style.configure("SubHeader.TLabel", background=COLOR_PANEL, foreground=COLOR_ACCENT, font=("Segoe UI", 12, "bold"))
         
-        # Buttons
         style.configure("TButton", 
             background="#333333", 
             foreground=COLOR_TEXT, 
@@ -143,7 +133,6 @@ class GTControlCenter:
             foreground=[('active', '#000000')]
         )
 
-        # Accent Button
         style.configure("Accent.TButton", 
             background=COLOR_ACCENT, 
             foreground="#000000", 
@@ -152,7 +141,6 @@ class GTControlCenter:
         style.map("Accent.TButton", background=[('active', '#FF8533')])
 
     def _build_ui(self):
-        # --- Header ---
         header = ttk.Frame(self.root)
         header.pack(fill="x", pady=20, padx=25)
         
@@ -162,25 +150,21 @@ class GTControlCenter:
         self.conn_lbl = ttk.Label(header, text="● Disconnected", foreground=COLOR_ERROR, font=("Segoe UI", 10))
         self.conn_lbl.pack(side="right")
 
-        # --- Main Content Area (Grid) ---
         content = ttk.Frame(self.root)
         content.pack(fill="both", expand=True, padx=25, pady=10)
-        content.columnconfigure(0, weight=1) # Keyboard Col
-        content.columnconfigure(1, weight=1) # Power Col
+        content.columnconfigure(0, weight=1)
+        content.columnconfigure(1, weight=1)
 
-        # === Left Panel: Keyboard Lighting ===
         kb_panel = ttk.Frame(content, style="Panel.TFrame", padding=20)
         kb_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
 
         ttk.Label(kb_panel, text="KEYBOARD LIGHTING", style="SubHeader.TLabel").pack(anchor="w", pady=(0, 15))
 
-        # Mode Selector
         ttk.Label(kb_panel, text="Effect Mode", style="Panel.TLabel", foreground=COLOR_TEXT_DIM).pack(anchor="w")
         mode_cb = ttk.Combobox(kb_panel, textvariable=self.var_mode, values=list(KB_MODES.values()), state="readonly")
         mode_cb.pack(fill="x", pady=(5, 15))
         mode_cb.bind("<<ComboboxSelected>>", self.apply_rgb)
 
-        # Brightness
         ttk.Label(kb_panel, text="Brightness", style="Panel.TLabel", foreground=COLOR_TEXT_DIM).pack(anchor="w")
         
         bright_frame = ttk.Frame(kb_panel, style="Panel.TFrame")
@@ -192,7 +176,6 @@ class GTControlCenter:
         self.bright_lbl = ttk.Label(bright_frame, textvariable=self.var_bright, style="Panel.TLabel", width=4)
         self.bright_lbl.pack(side="right", padx=(10, 0))
 
-        # Color Presets
         ttk.Label(kb_panel, text="Quick Colors", style="Panel.TLabel", foreground=COLOR_TEXT_DIM).pack(anchor="w", pady=(0, 5))
         
         color_grid = ttk.Frame(kb_panel, style="Panel.TFrame")
@@ -207,38 +190,29 @@ class GTControlCenter:
                             command=lambda c=rgb: self.set_color(c))
             btn.grid(row=row_idx, column=col_idx, padx=4, pady=4)
             col_idx += 1
-            if col_idx > 3: # 4 cols wide
+            if col_idx > 3:
                 col_idx = 0
                 row_idx += 1
 
-        # Custom Color
         ttk.Button(kb_panel, text="PICK CUSTOM COLOR", command=self.pick_custom_color).pack(fill="x", pady=(20, 0))
 
-        # === Right Panel: Performance / Back Zone ===
         perf_panel = ttk.Frame(content, style="Panel.TFrame", padding=20)
         perf_panel.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
 
         ttk.Label(perf_panel, text="SYSTEM MODE", style="SubHeader.TLabel").pack(anchor="w", pady=(0, 5))
         ttk.Label(perf_panel, text="(Performance & Back Zone)", style="Panel.TLabel", font=("Segoe UI", 9, "italic"), foreground=COLOR_TEXT_DIM).pack(anchor="w", pady=(0, 20))
 
-        # Performance Buttons
-        # Office
         btn_off = ttk.Button(perf_panel, text="OFFICE MODE", command=lambda: self.apply_perf("OFFICE"))
         btn_off.pack(fill="x", pady=10, ipady=5)
         
-        # Balance
         btn_bal = ttk.Button(perf_panel, text="BALANCE MODE", command=lambda: self.apply_perf("BALANCE"))
         btn_bal.pack(fill="x", pady=10, ipady=5)
 
-        # Gaming
         btn_gam = ttk.Button(perf_panel, text="GAMING MODE", style="Accent.TButton", command=lambda: self.apply_perf("GAMING"))
         btn_gam.pack(fill="x", pady=10, ipady=8)
 
-        # Status Bar at bottom
         self.status_bar = ttk.Label(self.root, textvariable=self.var_status, foreground=COLOR_TEXT_DIM, font=("Segoe UI", 8))
         self.status_bar.pack(side="bottom", fill="x", padx=25, pady=10)
-
-    # --- Interaction Logic ---
 
     def _start_connection_monitor(self):
         found = self.hw.find_device()
@@ -249,7 +223,6 @@ class GTControlCenter:
         self.root.after(3000, self._start_connection_monitor)
 
     def on_bright_slide(self, val):
-        # Debounce or just set directly, RGB application is fast enough
         self.apply_rgb()
 
     def set_color(self, rgb):
@@ -264,7 +237,6 @@ class GTControlCenter:
             self.set_color(tuple(map(int, color[0])))
 
     def apply_rgb(self, event=None):
-        # Get Mode ID
         mode_str = self.var_mode.get()
         mode_id = next((k for k, v in KB_MODES.items() if v == mode_str), 1)
         
@@ -283,7 +255,6 @@ class GTControlCenter:
         
         if success:
             self.var_status.set(f"System Mode Set: {mode_name}")
-            # Visual feedback
             messagebox.showinfo("System Mode", f"Switched to {mode_name} Mode")
         else:
             self.var_status.set(f"Error: {msg}")
@@ -291,10 +262,6 @@ class GTControlCenter:
 
 if __name__ == "__main__":
     app_root = tk.Tk()
-    
-    # Attempt to set icon if running on Linux/Windows and file exists (Optional)
-    # img = tk.PhotoImage(file='icon.png')
-    # app_root.iconphoto(False, img)
     
     app = GTControlCenter(app_root)
     app_root.mainloop()
