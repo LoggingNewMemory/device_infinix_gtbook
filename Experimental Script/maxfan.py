@@ -1,3 +1,6 @@
+# This is partially working since the max fan actually increase. However I don't know how to make it 
+# Same as the original behaviour. For now this is the best I can achieve
+
 #!/usr/bin/env python3
 import sys
 import os
