@@ -5,89 +5,103 @@ import struct
 import time
 
 # --- Configuration ---
+# EC Index/Data Ports (corresponds to 768u in C# code)
 EC_INDEX_PORT = 0x300
 EC_DATA_PORT  = 0x301
 
-# EC RAM Address for Fan Boost (from BYD WMI2.cs: ECWriteRamCMD(65, ...))
+# Address 64 (0x40) confirmed in SetPerformanceMode.cs
+PERF_MODE_ADDR = 0x40
+
+# Address 65 (0x41) confirmed in SetFanFullMode.cs
 FAN_BOOST_ADDR = 0x41 
 
-# Commands
-CMD_TRIGGER_WRITE = 0xA1
+# Trigger Value 161 (0xA1) confirmed in ECWriteRamCMD
+CMD_TRIGGER_WRITE = 0xA1 
+
+# Performance Modes from SetPerformanceMode.cs
+MODE_OFFICE  = 0x00
+MODE_BALANCE = 0x01
+MODE_GAMING  = 0x02
 
 def check_root():
     if os.geteuid() != 0:
-        print("[-] Error: This script requires root privileges to access I/O ports.")
-        print("    Usage: sudo python maxfan.py [on|off]")
+        print("[-] Error: Root privileges required. Run with sudo.")
         sys.exit(1)
 
 def ec_write_byte(port_fd, index, value):
     """
-    Writes a byte to a specific register index on the EC.
-    Equivalent to outb(index, 0x300); outb(value, 0x301);
+    Writes a byte to the EC.
+    Replicates IO(768u, 1, index, value) from C#.
     """
     try:
-        # Write Index
+        # Write Index to 0x300
         port_fd.seek(EC_INDEX_PORT)
         port_fd.write(struct.pack('B', index))
         
-        # Write Data
+        # Write Value to 0x301
         port_fd.seek(EC_DATA_PORT)
         port_fd.write(struct.pack('B', value))
         
-        # Small delay to ensure EC processes the write
-        time.sleep(0.001)
+        # Necessary delay for hardware processing
+        time.sleep(0.005)
     except OSError as e:
-        print(f"[-] I/O Error writing index {hex(index)}: {e}")
+        print(f"[-] I/O Error on index {hex(index)}: {e}")
         sys.exit(1)
 
-def set_fan_max(enable: bool):
+def send_ec_ram_cmd(port, address, value):
     """
-    Replicates the ECWriteRamCMD sequence found in BYD WMI2.cs
-    
-    Source logic:
-    IO(768u, 1, 148, 0);   -> Reg 0x94 = 0
-    IO(768u, 1, 145, 0);   -> Reg 0x91 = 0
-    IO(768u, 1, 146, 0);   -> Reg 0x92 = 0
-    IO(768u, 1, 146, 1);   -> Reg 0x92 = 1
-    IO(768u, 1, 144, 0);   -> Reg 0x90 = 0
-    IO(768u, 1, 145, data); -> Reg 0x91 = Address (0x41)
-    IO(768u, 1, 160, val);  -> Reg 0xA0 = Value (1 or 0)
-    IO(768u, 1, 147, 161);  -> Reg 0x93 = 0xA1 (Trigger Write)
+    Generic function to write to EC RAM using the initialization sequence
+    found in ECWriteRamCMD.cs.
     """
-    val = 1 if enable else 0
-    status_str = "ON" if enable else "OFF"
+    # 1. Initialization Sequence
+    ec_write_byte(port, 0x94, 0x00) # Index 148
+    ec_write_byte(port, 0x91, 0x00) # Index 145
+    ec_write_byte(port, 0x92, 0x00) # Index 146
+    ec_write_byte(port, 0x92, 0x01) # Index 146 (Value 1)
+    ec_write_byte(port, 0x90, 0x00) # Index 144
     
-    print(f"[*] Setting Fan Max Mode to: {status_str}...")
+    # 2. Set Address (e.g., 0x40 for Mode, 0x41 for Fan)
+    ec_write_byte(port, 0x91, address)
+    
+    # 3. Set Value
+    ec_write_byte(port, 0xA0, value) # Index 160
+    
+    # 4. Trigger Write
+    ec_write_byte(port, 0x93, CMD_TRIGGER_WRITE) # Index 147
 
+def set_fan_max(enable: bool):
     try:
         with open("/dev/port", "rb+", buffering=0) as port:
-            # 1. Reset/Init sequence
-            ec_write_byte(port, 0x94, 0x00)
-            ec_write_byte(port, 0x91, 0x00)
-            ec_write_byte(port, 0x92, 0x00)
-            ec_write_byte(port, 0x92, 0x01)
-            ec_write_byte(port, 0x90, 0x00)
-            
-            # 2. Set Target Address (0x41)
-            ec_write_byte(port, 0x91, FAN_BOOST_ADDR)
-            
-            # 3. Set Value (1 = Max, 0 = Normal)
-            ec_write_byte(port, 0xA0, val)
-            
-            # 4. Trigger Write Command (0xA1)
-            ec_write_byte(port, 0x93, CMD_TRIGGER_WRITE)
-            
-            print(f"[+] Successfully sent command to EC.")
+            if enable:
+                print("[*] Switching to Gaming Mode (Instant Response)...")
+                # Set Performance Mode to GAMING (2) first to remove smoothing
+                send_ec_ram_cmd(port, PERF_MODE_ADDR, MODE_GAMING)
+                
+                print("[*] Engaging Max Fan Boost...")
+                # Set Fan Boost to ON (1)
+                send_ec_ram_cmd(port, FAN_BOOST_ADDR, 1)
+                print("[+] Success: Fan set to MAX (Gaming Mode).")
+                
+            else:
+                print("[*] Disabling Max Fan Boost...")
+                # Set Fan Boost to OFF (0)
+                send_ec_ram_cmd(port, FAN_BOOST_ADDR, 0)
+                
+                print("[*] Reverting to Balance Mode...")
+                # Revert Performance Mode to BALANCE (1) for normal usage
+                send_ec_ram_cmd(port, PERF_MODE_ADDR, MODE_BALANCE)
+                print("[+] Success: Fan returned to Normal (Balance Mode).")
             
     except FileNotFoundError:
-        print("[-] Error: /dev/port not found. Ensure kernel module 'port' is loaded (usually built-in).")
-        print("    If Secure Boot is on, direct I/O access might be blocked.")
+        print("[-] Error: /dev/port not found. Ensure kernel module 'port' is loaded.")
+    except Exception as e:
+        print(f"[-] An error occurred: {e}")
 
 if __name__ == "__main__":
     check_root()
     
     if len(sys.argv) < 2:
-        print("Usage: sudo python maxfan.py [on|off]")
+        print("Usage: sudo python3 maxfan.py [on|off]")
         sys.exit(1)
         
     mode = sys.argv[1].lower()
