@@ -712,7 +712,7 @@ class MainWindow(Adw.ApplicationWindow):
         row1.append(lbl_e)
         
         self.bz_mode_dropdown = Gtk.DropDown.new_from_strings([
-            "Off", "Static Color", "Breathing", "Rhythm", "Rainbow Rhythm", "Jump", "Rainbow Jump", "Round", "Cover"
+            "Default", "Off", "Static Color", "Breathing", "Rhythm", "Rainbow Rhythm", "Jump", "Rainbow Jump", "Round", "Cover"
         ])
         self.bz_mode_dropdown.add_css_class("custom-dropdown")
         self.bz_mode_dropdown.set_hexpand(True)
@@ -933,6 +933,13 @@ Comment=Run GT Control Center in background
                 self.kb_smooth_scale.set_value(kb.get("smooth", 0))
 
 
+    def _restore_back_zone_if_needed(self):
+        if hasattr(self, 'bz_mode_dropdown') and self.bz_mode_dropdown.get_selected() != 0:
+            def reapply():
+                self.apply_back_zone_lighting(None)
+                return False
+            GLib.timeout_add(150, reapply)
+
     def set_performance_mode(self, mode: int, save=True):
         self.btn_office.remove_css_class("active")
         self.btn_balance.remove_css_class("active")
@@ -957,6 +964,11 @@ Comment=Run GT Control Center in background
         self.fan.set_performance_mode(mode)
         
         self.fan.set_fan_mode(target_fan_mode)
+        
+        if hasattr(self, 'max_fan_switch') and self.max_fan_switch.get_active():
+            self.fan.set_fan_mode(FanCtrlMode.FullSpeed)
+            
+        self._restore_back_zone_if_needed()
             
         if save:
             self.config_mgr.config["performance"]["mode"] = mode
@@ -967,12 +979,14 @@ Comment=Run GT Control Center in background
             self.fan.set_fan_mode(FanCtrlMode.FullSpeed)
         else:
             self.fan.set_fan_mode(FanCtrlMode.FullSpeedOff)
-            if self.btn_office.has_css_class("suggested-action"):
+            if self.btn_office.has_css_class("active"):
                 self.fan.set_fan_mode(FanCtrlMode.OfficeMode)
-            elif self.btn_balance.has_css_class("suggested-action"):
+            elif self.btn_balance.has_css_class("active"):
                 self.fan.set_fan_mode(FanCtrlMode.PerformanceMode)
-            elif self.btn_gaming.has_css_class("suggested-action"):
+            elif self.btn_gaming.has_css_class("active"):
                 self.fan.set_fan_mode(FanCtrlMode.GamingMode)
+                
+        self._restore_back_zone_if_needed()
                 
         self.config_mgr.config["performance"]["max_fan"] = state
         self.config_mgr.save()
@@ -1085,25 +1099,43 @@ Comment=Run GT Control Center in background
         device_idx = self.bz_device_dropdown.get_selected()
         audio_device = self.bz_audio_device_ids[device_idx] if hasattr(self, 'bz_audio_device_ids') and device_idx < len(self.bz_audio_device_ids) else None
         
-        mode_map_back = {
-            0: BackLightCmd.Light_Close,
-            1: BackLightCmd.Light_AlwaysOn,
-            2: BackLightCmd.Light_Breath,
-            3: BackLightCmd.Light_Rythm,
-            4: 99,
-            5: BackLightCmd.Light_Jump,
-            6: 98,
-            7: BackLightCmd.Light_Round,
-            8: BackLightCmd.Light_Cover
-        }
-        mapped_mode = mode_map_back.get(idx, BackLightCmd.Light_AlwaysOn)
         if idx == 0:
+            self.lighting.bz_anim = None
+            self.lighting.update_animations()
+            
+            perf_mode = self.config_mgr.config.get("performance", {}).get("mode", 1)
+            if perf_mode == 0:
+                target_fan_mode = FanCtrlMode.OfficeMode
+            elif perf_mode == 1:
+                target_fan_mode = FanCtrlMode.PerformanceMode
+            else:
+                target_fan_mode = FanCtrlMode.GamingMode
+            self.fan.set_fan_mode(target_fan_mode)
+            
+            if hasattr(self, 'max_fan_switch') and self.max_fan_switch.get_active():
+                self.fan.set_fan_mode(FanCtrlMode.FullSpeed)
+                
             hex_color = "#000000"
-        self.lighting.set_serial_back_zone_mode(mapped_mode, hex_color, brightness=brightness, sens=sens, smooth=smooth, audio_device=audio_device)
+        else:
+            mode_map_back = {
+                1: BackLightCmd.Light_Close,
+                2: BackLightCmd.Light_AlwaysOn,
+                3: BackLightCmd.Light_Breath,
+                4: BackLightCmd.Light_Rythm,
+                5: 99,
+                6: BackLightCmd.Light_Jump,
+                7: 98,
+                8: BackLightCmd.Light_Round,
+                9: BackLightCmd.Light_Cover
+            }
+            mapped_mode = mode_map_back.get(idx, BackLightCmd.Light_AlwaysOn)
+            if idx == 1:
+                hex_color = "#000000"
+            self.lighting.set_serial_back_zone_mode(mapped_mode, hex_color, brightness=brightness, sens=sens, smooth=smooth, audio_device=audio_device)
 
         self.config_mgr.config["backzone"].update({
             "mode": idx,
-            "color": hex_color if idx != 0 else f"#{int(color.red*255):02x}{int(color.green*255):02x}{int(color.blue*255):02x}",
+            "color": hex_color if idx not in (0, 1) else f"#{int(color.red*255):02x}{int(color.green*255):02x}{int(color.blue*255):02x}",
             "brightness": brightness_pct,
             "audio_device": device_idx,
             "sens": sens,
@@ -1203,7 +1235,7 @@ Comment=Run GT Control Center in background
         # Back Zone
         bz = conf.get("backzone", {})
         if hasattr(self, 'bz_mode_dropdown'):
-            self.bz_mode_dropdown.set_selected(bz.get("mode", 1))
+            self.bz_mode_dropdown.set_selected(bz.get("mode", 0))
             self.bz_current_rgba.parse(bz.get("color", "#FF0000"))
             self._update_color_button_ui(self.bz_color_button, self.bz_current_rgba)
             self.bz_brightness_scale.set_value(bz.get("brightness", 100))
