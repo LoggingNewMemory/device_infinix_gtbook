@@ -1,7 +1,7 @@
 #!/bin/bash
 cd "$(dirname "$0")"
 
-VERSION="2.0.0"
+VERSION="3.0.0"
 DIST_NAME="gt-controlcenter-linux-installer-$VERSION"
 DIST_DIR="dist/$DIST_NAME"
 
