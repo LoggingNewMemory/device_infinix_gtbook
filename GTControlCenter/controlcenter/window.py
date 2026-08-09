@@ -71,6 +71,12 @@ class MainWindow(Adw.ApplicationWindow):
         self.set_visible(False)
         return True
 
+    def present(self):
+        if hasattr(self.get_application(), 'is_background') and self.get_application().is_background and getattr(self.get_application(), 'first_activate_done', False) == False:
+            self.get_application().first_activate_done = True
+            return
+        super().present()
+
     def setup_css(self):
         css_provider = Gtk.CssProvider()
         css = '''

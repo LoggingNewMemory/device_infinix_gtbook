@@ -34,7 +34,7 @@ if '--tray-process' in sys.argv:
         icon.stop()
         
     menu = pystray.Menu(
-        pystray.MenuItem("Show GT Control Center", show_window, default=True),
+        pystray.MenuItem("Show GT Control Center", show_window),
         pystray.MenuItem("Quit", quit_app)
     )
     

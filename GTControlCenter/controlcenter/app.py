@@ -45,12 +45,15 @@ class ControlCenterApp(Adw.Application):
         self.setup_tray()
 
     def do_activate(self):
-        if not self.win:
-            self.win = MainWindow(self)
-            
         if self.is_background and self.first_activate:
             self.first_activate = False
+            # Completely avoid creating a GTK window for true headless start
+            from controlcenter.backend import AppBackend
+            backend = AppBackend()
+            backend.apply_all()
         else:
+            if not self.win:
+                self.win = MainWindow(self)
             self.win.present()
             self.first_activate = False
 
