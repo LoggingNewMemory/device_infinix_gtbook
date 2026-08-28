@@ -119,15 +119,20 @@ class AppBackend:
             perf_mode = self.config_mgr.config.get("performance", {}).get("mode", 1)
             if perf_mode == 0:
                 target_fan_mode = FanCtrlMode.OfficeMode
+                bz_cmd = BackLightCmd.SliceMode
             elif perf_mode == 1:
                 target_fan_mode = FanCtrlMode.PerformanceMode
+                bz_cmd = BackLightCmd.BalanceMode
             else:
                 target_fan_mode = FanCtrlMode.GamingMode
+                bz_cmd = BackLightCmd.GameMode
             self.fan.set_fan_mode(target_fan_mode)
             
             perf = self.config_mgr.config.get("performance", {})
             if perf.get("max_fan", False):
                 self.fan.set_fan_mode(FanCtrlMode.FullSpeed)
+                
+            self.lighting.set_serial_back_zone_mode(bz_cmd, "#000000", brightness=100)
         else:
             mode_map_back = {
                 1: BackLightCmd.Light_Close,

@@ -950,7 +950,7 @@ Comment=Run GT Control Center in background
 
 
     def _restore_back_zone_if_needed(self):
-        if hasattr(self, 'bz_mode_dropdown') and self.bz_mode_dropdown.get_selected() != 0:
+        if hasattr(self, 'bz_mode_dropdown'):
             def reapply():
                 self.apply_back_zone_lighting(None)
                 return False
@@ -1122,15 +1122,19 @@ Comment=Run GT Control Center in background
             perf_mode = self.config_mgr.config.get("performance", {}).get("mode", 1)
             if perf_mode == 0:
                 target_fan_mode = FanCtrlMode.OfficeMode
+                bz_cmd = BackLightCmd.SliceMode
             elif perf_mode == 1:
                 target_fan_mode = FanCtrlMode.PerformanceMode
+                bz_cmd = BackLightCmd.BalanceMode
             else:
                 target_fan_mode = FanCtrlMode.GamingMode
+                bz_cmd = BackLightCmd.GameMode
             self.fan.set_fan_mode(target_fan_mode)
             
             if hasattr(self, 'max_fan_switch') and self.max_fan_switch.get_active():
                 self.fan.set_fan_mode(FanCtrlMode.FullSpeed)
                 
+            self.lighting.set_serial_back_zone_mode(bz_cmd, "#000000", brightness=100)
             hex_color = "#000000"
         else:
             mode_map_back = {
