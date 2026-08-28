@@ -1,4 +1,0 @@
-pyusb
-psutil
-pyserial
-nvidia-ml-py

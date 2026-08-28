@@ -1,8 +1,0 @@
-Metadata-Version: 2.4
-Name: gt-controlcenter-linux
-Version: 1.0.0
-Requires-Dist: pyusb
-Requires-Dist: psutil
-Requires-Dist: pyserial
-Requires-Dist: nvidia-ml-py
-Dynamic: requires-dist
