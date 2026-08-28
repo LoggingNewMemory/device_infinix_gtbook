@@ -1040,7 +1040,7 @@ Comment=Run GT Control Center in background
             mapped_mode = mode_map.get(idx, KeyboardLightMode.Always)
             if idx == 0:
                 hex_color = "#000000"
-            elif idx in (3, 4, 5, 6, 7):
+            elif idx in (3, 4, 5):
                 hex_color = "#FFFFFF"
 
             # Sync the effect to all individual zones so they don't revert if a specific zone is later configured

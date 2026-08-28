@@ -70,7 +70,7 @@ class AppBackend:
             mapped_mode = mode_map.get(idx, KeyboardLightMode.Always)
             if idx == 0:
                 hex_color = "#000000"
-            elif idx in (3, 4, 5, 6, 7):
+            elif idx in (3, 4, 5):
                 hex_color = "#FFFFFF"
 
             if idx <= 5:
