@@ -27,12 +27,14 @@ class USBService:
                 try:
                     self.dev.detach_kernel_driver(self.interface)
                 except usb.core.USBError as e:
+                    self.dev = None
                     return False
                     
             usb.util.claim_interface(self.dev, self.interface)
             return True
             
         except usb.core.USBError as e:
+            self.dev = None
             return False
 
     def disconnect(self):
