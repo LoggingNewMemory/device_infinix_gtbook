@@ -27,7 +27,7 @@ def load_custom_font(font_path):
         return False
 
 class MainWindow(Adw.ApplicationWindow):
-    def __init__(self, app):
+    def __init__(self, app, backend=None):
         super().__init__(application=app, title="INFINIX - GT BOOK")
         self.set_default_size(1280, 720)
         self.set_resizable(False)
@@ -48,14 +48,24 @@ class MainWindow(Adw.ApplicationWindow):
         
         self.setup_css()
         
-        self.wmi = ACPIWmi()
-        self.usb = USBService()
-        self.usb.connect()
-        self.serial = SerialService()
-        self.lighting = LightingService(self.usb, self.serial)
-        self.fan = FanService(self.usb, self.wmi)
+        self.backend = backend
+        if self.backend:
+            self.wmi = self.backend.wmi
+            self.usb = self.backend.usb
+            self.serial = self.backend.serial
+            self.lighting = self.backend.lighting
+            self.fan = self.backend.fan
+            self.config_mgr = self.backend.config_mgr
+        else:
+            self.wmi = ACPIWmi()
+            self.usb = USBService()
+            self.usb.connect()
+            self.serial = SerialService()
+            self.lighting = LightingService(self.usb, self.serial)
+            self.fan = FanService(self.usb, self.wmi)
+            self.config_mgr = ConfigManager()
+
         self.monitor = MonitorService(self.wmi)
-        self.config_mgr = ConfigManager()
         
         self.setup_ui()
         self.load_settings()
