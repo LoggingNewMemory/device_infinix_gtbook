@@ -982,7 +982,10 @@ Comment=Run GT Control Center in background
         self.fan.set_fan_mode(target_fan_mode)
         
         if hasattr(self, 'max_fan_switch') and self.max_fan_switch.get_active():
+            self.fan.set_fan_full_mode(True)
             self.fan.set_fan_mode(FanCtrlMode.FullSpeed)
+        else:
+            self.fan.set_fan_full_mode(False)
             
         self._restore_back_zone_if_needed()
             
@@ -991,6 +994,7 @@ Comment=Run GT Control Center in background
             self.config_mgr.save()
 
     def on_max_fan_toggled(self, switch, state):
+        self.fan.set_fan_full_mode(state)
         if state:
             self.fan.set_fan_mode(FanCtrlMode.FullSpeed)
         else:
@@ -1046,7 +1050,10 @@ Comment=Run GT Control Center in background
             # Sync the effect to all individual zones so they don't revert if a specific zone is later configured
             if idx <= 5:
                 cmd_map = {1: 6, 2: 6, 3: 7, 4: 7}
-                offset_map = {1: 0, 2: 4, 3: 0, 4: 4}
+                if idx == 4:
+                    offset_map = {1: 0, 2: 4, 3: 0, 4: 4}
+                else:
+                    offset_map = {1: 0, 2: 0, 3: 0, 4: 0}
                 zone_mode_map = {0: 0, 1: 0, 2: 1, 3: 2, 4: 2, 5: 3}
                 zone_mode = zone_mode_map.get(idx, 0)
                 sync_color = hex_color
@@ -1132,7 +1139,10 @@ Comment=Run GT Control Center in background
             self.fan.set_fan_mode(target_fan_mode)
             
             if hasattr(self, 'max_fan_switch') and self.max_fan_switch.get_active():
+                self.fan.set_fan_full_mode(True)
                 self.fan.set_fan_mode(FanCtrlMode.FullSpeed)
+            else:
+                self.fan.set_fan_full_mode(False)
                 
             self.lighting.set_serial_back_zone_mode(bz_cmd, "#000000", brightness=100)
             hex_color = "#000000"

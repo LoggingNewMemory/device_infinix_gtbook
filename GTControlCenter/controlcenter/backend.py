@@ -40,7 +40,10 @@ class AppBackend:
         self.fan.set_fan_mode(target_fan_mode)
 
         if max_fan:
+            self.fan.set_fan_full_mode(True)
             self.fan.set_fan_mode(FanCtrlMode.FullSpeed)
+        else:
+            self.fan.set_fan_full_mode(False)
 
     def apply_keyboard(self):
         kb = self.config_mgr.config.get("keyboard", {})
@@ -75,7 +78,10 @@ class AppBackend:
 
             if idx <= 5:
                 cmd_map = {1: 6, 2: 6, 3: 7, 4: 7}
-                offset_map = {1: 0, 2: 4, 3: 0, 4: 4}
+                if idx == 4:
+                    offset_map = {1: 0, 2: 4, 3: 0, 4: 4}
+                else:
+                    offset_map = {1: 0, 2: 0, 3: 0, 4: 0}
                 zone_mode_map = {0: 0, 1: 0, 2: 1, 3: 2, 4: 2, 5: 3}
                 zone_mode = zone_mode_map.get(idx, 0)
                 for z in range(1, 5):
@@ -130,7 +136,10 @@ class AppBackend:
             
             perf = self.config_mgr.config.get("performance", {})
             if perf.get("max_fan", False):
+                self.fan.set_fan_full_mode(True)
                 self.fan.set_fan_mode(FanCtrlMode.FullSpeed)
+            else:
+                self.fan.set_fan_full_mode(False)
                 
             self.lighting.set_serial_back_zone_mode(bz_cmd, "#000000", brightness=100)
         else:

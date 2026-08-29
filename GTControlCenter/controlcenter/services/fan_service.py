@@ -40,3 +40,13 @@ class FanService:
             return self.wmi.ec_read_ram_cmd(64)
         except Exception as e:
             return 0
+            
+    def set_fan_full_mode(self, flag: bool) -> bool:
+        """
+        Set max fan mode via WMI EC RAM.
+        """
+        try:
+            self.wmi.set_fan_full_mode(flag)
+            return True
+        except Exception as e:
+            return False

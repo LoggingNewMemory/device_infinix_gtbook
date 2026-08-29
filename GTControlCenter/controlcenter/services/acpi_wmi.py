@@ -117,26 +117,36 @@ class ACPIWmi:
         return self.do_method(2)
         
     def ec_write_ram_cmd(self, address: int, data: int) -> int:
-        return self.smi(128, 1, 1, data) # Derived from C# SMI(0x80, 1, 1, data)
+        self.mem_io(768, 1, 148, 0)
+        self.mem_io(768, 1, 145, 0)
+        self.mem_io(768, 1, 146, 0)
+        self.mem_io(768, 1, 146, 1)
+        self.mem_io(768, 1, 144, 0)
+        self.mem_io(768, 1, 145, address)
+        self.mem_io(768, 1, 160, data)
+        self.mem_io(768, 1, 147, 161)
+        return 80
         
     def ec_read_ram_cmd(self, address: int) -> int:
-        return self.smi(128, 0, 1) # Needs proper mapping
+        self.mem_io(768, 1, 148, 0)
+        self.mem_io(768, 1, 146, 1)
+        self.mem_io(768, 1, 144, 0)
+        self.mem_io(768, 1, 145, address)
+        self.mem_io(768, 1, 147, 160)
+        return self.mem_io(768, 0, 160, 0)
 
     def set_gpu_mode(self, mode: int) -> int:
         """
         Switches the GPU mode: 1 = dGPU Only, 2 = Dynamic, 3 = iGPU Only
         """
-        self.mem_io(768, 1, 144, 0)
-        self.mem_io(768, 1, 145, 192)
-        self.mem_io(768, 1, 146, 1)
-        self.mem_io(768, 1, 160, mode)
-        self.mem_io(768, 1, 147, 161)
-        return self.mem_io(768, 0, 148, 0)
+        return self.ec_write_ram_cmd(192, mode)
 
     def get_gpu_mode(self) -> int:
-        self.mem_io(768, 1, 144, 0)
-        self.mem_io(768, 1, 145, 192)
-        self.mem_io(768, 1, 146, 1)
-        self.mem_io(768, 1, 147, 160)
-        return self.mem_io(768, 0, 160, 0)
+        return self.ec_read_ram_cmd(192)
+
+    def set_fan_full_mode(self, flag: bool) -> int:
+        """
+        Equivalent to Wmi.SetFanFullMode
+        """
+        return self.ec_write_ram_cmd(65, 1 if flag else 0)
 
