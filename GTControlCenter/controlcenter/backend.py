@@ -76,12 +76,9 @@ class AppBackend:
             elif idx in (3, 4, 5):
                 hex_color = "#FFFFFF"
 
-            if idx <= 5:
+            if idx <= 2 or idx == 4:
                 cmd_map = {1: 6, 2: 6, 3: 7, 4: 7}
-                if idx == 4:
-                    offset_map = {1: 0, 2: 4, 3: 0, 4: 4}
-                else:
-                    offset_map = {1: 0, 2: 0, 3: 0, 4: 0}
+                offset_map = {1: 0, 2: 4, 3: 0, 4: 4}
                 zone_mode_map = {0: 0, 1: 0, 2: 1, 3: 2, 4: 2, 5: 3}
                 zone_mode = zone_mode_map.get(idx, 0)
                 for z in range(1, 5):

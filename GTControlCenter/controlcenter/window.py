@@ -911,9 +911,9 @@ Comment=Run GT Control Center in background
         zone = dropdown.get_selected()
         
         if zone == 0:
-            self._update_dropdown_items(self.kb_mode_dropdown, [
+            self.kb_mode_dropdown.set_model(Gtk.StringList.new([
                 "Off", "Static Color", "Breathing", "Neon Cycle", "Ocean Waves", "Rainbow", "Flow", "Wave", "Rhythm Normal", "Rhythm Dance"
-            ])
+            ]))
         else:
             self.kb_mode_dropdown.set_model(Gtk.StringList.new([
                 "Off", "Static Color", "Breathing", "Neon Cycle", "Rainbow"
@@ -1048,12 +1048,10 @@ Comment=Run GT Control Center in background
                 hex_color = "#FFFFFF"
 
             # Sync the effect to all individual zones so they don't revert if a specific zone is later configured
-            if idx <= 5:
+            # (Only sync static colors and Off to avoid animation timer glitches like 'Color Jump')
+            if idx <= 2 or idx == 4:
                 cmd_map = {1: 6, 2: 6, 3: 7, 4: 7}
-                if idx == 4:
-                    offset_map = {1: 0, 2: 4, 3: 0, 4: 4}
-                else:
-                    offset_map = {1: 0, 2: 0, 3: 0, 4: 0}
+                offset_map = {1: 0, 2: 4, 3: 0, 4: 4}
                 zone_mode_map = {0: 0, 1: 0, 2: 1, 3: 2, 4: 2, 5: 3}
                 zone_mode = zone_mode_map.get(idx, 0)
                 sync_color = hex_color
